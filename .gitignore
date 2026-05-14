@@ -18,6 +18,11 @@ cache/
 # Excepción: JSONs que sí deben commitearse
 !package.json
 
+# ── Entorno virtual ───────────────────────────────────────────────────────────
+# No se commitea: cada quien lo crea localmente con requirements.txt
+venv/
+.venv/
+
 # ── macOS ─────────────────────────────────────────────────────────────────────
 .DS_Store
 .AppleDouble
