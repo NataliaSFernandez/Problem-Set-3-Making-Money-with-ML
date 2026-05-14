@@ -3,8 +3,6 @@
 # =============================================================================
 
 # ── Datos derivados y cache (reproducibles desde los scripts) ─────────────────
-# CSVs procesados y con features (62 MB)
-00_data/processed/
 # Cache de POIs y vías descargados de BigQuery/OSM
 00_data/raw/osm/
 # Cache de sesión interna (no es dato del proyecto)
