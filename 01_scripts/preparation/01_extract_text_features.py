@@ -12,42 +12,51 @@ Lógica general
 2. Se normaliza el texto: minúsculas y eliminación de tildes.
    - Esto hace que "depósito", "Deposito" y "deposito" sean equivalentes,
      lo que evita perder menciones por diferencias de acentuación o capitalización.
-3. Sobre ese texto normalizado se aplican tres tipos de extracción:
+3. Sobre ese texto normalizado se aplican dos tipos de extracción:
    a) Dummies de mención  : buscar si aparece algún patrón de texto relevante (regex).
-   b) Variables numéricas : longitud de descripción, piso, parqueaderos.
-   c) Score continuo      : sentimiento del anuncio, score TF-IDF de términos premium.
+   b) Score continuo      : score TF-IDF de términos premium.
+   c) Variables numéricas : piso y parqueaderos extraídos del texto.
+
+Tratamiento de missings
+-----------------------
+Todas las variables de texto usan NaN para indicar ausencia de información:
+  - Dummies (remodelado, vista_panoramica, etc.):
+      1   → el patrón apareció en el texto del anuncio.
+      NaN → el patrón NO apareció (la característica puede existir pero
+            no fue mencionada; no se puede distinguir de ausencia real).
+  - Numéricas (parqueaderos_txt, piso_txt):
+      número → valor extraído del texto.
+      NaN    → no se mencionó en el texto.
+  - Amenidades (gimnasio, amenidades, num_amenidades): misma lógica que dummies.
 
 Variables producidas (añadidas a las columnas originales del CSV)
 -----------------------------------------------------------------
-  Dummies de características del inmueble (0/1):
+  Dummies de características del inmueble (1 / NaN):
     remodelado       → menciona remodelación o estado nuevo/listo para estrenar
     vista_panoramica → menciona vistas, panorámicas o vista a los cerros
     deposito         → menciona depósito, bodega o cuarto útil
     conjunto_cerrado → menciona portería, vigilancia, áreas comunes, etc.
     balcon_terraza   → menciona balcón, terraza, patio, BBQ, etc.
 
-  Scores NLP continuos:
-    sentimiento_score → polaridad del texto (léxico pos/neg en español). Rango ≈ −1 a 1
-    tfidf_premium     → suma de scores TF-IDF para vocabulario de lujo/premium
+  Score NLP continuo:
+    tfidf_premium    → suma de scores TF-IDF para vocabulario de lujo/premium
 
-  Variables numéricas del inmueble:
-    longitud_desc    → número de caracteres del campo `description`
-    parqueaderos_txt → número de garajes/parqueaderos mencionados (np.nan si no hay mención)
-    piso_txt         → número de piso mencionado en el texto (np.nan si no hay mención)
-    banos_txt        → número de baños mencionados en el texto (np.nan si no hay mención)
+  Variables numéricas del inmueble (número / NaN):
+    parqueaderos_txt → número de garajes/parqueaderos mencionados
+    piso_txt         → número de piso mencionado en el texto
 
-  Variables de amenidades:
-    gimnasio         → dummy (0/1): menciona explícitamente gimnasio/gym/fitness
-    amenidades       → dummy (0/1): menciona al menos una amenidad de cualquier tipo
-    num_amenidades   → entero: número de tipos distintos de amenidad mencionados
+  Variables de amenidades (1 / NaN  ó  entero / NaN):
+    gimnasio         → menciona explícitamente gimnasio/gym/fitness
+    amenidades       → menciona al menos una amenidad de cualquier tipo
+    num_amenidades   → número de tipos distintos de amenidad mencionados
                        (piscina, jacuzzi, sauna, turco, spa, gimnasio, cancha,
                         squash, tenis, zona de trote, salón comunal, club house,
                         BBQ, salón de juegos, juegos infantiles, coworking, ascensor)
 
 Output
 ------
-  00_data/processed/train_texto.csv  ← train.csv original + 10 columnas nuevas
-  00_data/processed/test_texto.csv   ← test.csv  original + 10 columnas nuevas
+  00_data/processed/train_texto.csv  ← train.csv original + 11 columnas nuevas
+  00_data/processed/test_texto.csv   ← test.csv  original + 11 columnas nuevas
 
 Nota sobre leakage
 ------------------
@@ -123,8 +132,16 @@ def combinar_texto(df: pd.DataFrame) -> pd.Series:
 
 def dummy_busqueda(texto: pd.Series, patrones: list) -> pd.Series:
     """
-    Retorna una Serie binaria (0/1): toma valor 1 si ALGUNO de los patrones
-    regex hace match en el texto de esa fila, y 0 si ninguno lo hace.
+    Retorna una Serie float con dos posibles valores:
+      1.0 → algún patrón hizo match en el texto de esa fila.
+      NaN → ningún patrón hizo match (característica no mencionada).
+
+    Por qué NaN en vez de 0:
+      Un 0 haría indistinguibles dos situaciones muy diferentes:
+        a) El anuncio describe el inmueble y no menciona la característica.
+        b) El anuncio tiene texto vacío y no se pudo buscar nada.
+      Con NaN, el modelo puede tratar la ausencia de información
+      correctamente (imputación, indicadores de missing, etc.).
 
     Parámetros:
         texto    : Serie con texto ya normalizado (sin tildes, en minúsculas).
@@ -132,10 +149,11 @@ def dummy_busqueda(texto: pd.Series, patrones: list) -> pd.Series:
                    DEBEN escribirse sin tildes, ya que el texto fue normalizado.
 
     Los patrones se unen con OR (|) en una sola expresión para eficiencia.
-    Se usa `str.contains` con `regex=True` para soportar expresiones complejas.
     """
     regex = "|".join(patrones)
-    return texto.str.contains(regex, regex=True, na=False).astype(int)
+    match = texto.str.contains(regex, regex=True, na=False)
+    # Filas con match → 1.0 | Filas sin match → NaN
+    return match.where(match).astype(float)
 
 
 # =============================================================================
@@ -532,134 +550,6 @@ AMENIDADES_DICT = {
 NOMBRES_AMENIDADES = list(AMENIDADES_DICT.keys())
 
 # =============================================================================
-# LÉXICO DE SENTIMIENTO EN ESPAÑOL
-# =============================================================================
-#
-# Se construye un léxico simple de palabras positivas y negativas para
-# calcular la polaridad del texto de cada anuncio.
-#
-# Metodología: cada palabra del texto se compara contra el léxico.
-# Score = (nro_palabras_positivas − nro_palabras_negativas) / (total_relevantes + 1)
-# El denominador +1 evita división por cero cuando no hay palabras del léxico.
-# Rango aproximado: −1 (muy negativo) a +1 (muy positivo).
-#
-# Limitación: los léxicos de dominio general pueden no capturar bien el
-# sentimiento específico del mercado inmobiliario. Como alternativa robusta
-# se podría usar SpaCy con un modelo en español + adaptación de dominio,
-# pero esto requiere instalación adicional y es más lento.
-#
-# Expansiones respecto a la versión inicial:
-#   - Se añaden más adjetivos típicos de anuncios inmobiliarios bogotanos
-#   - Se añaden palabras negativas relacionadas con necesidad de reparación
-# =============================================================================
-
-POSITIVAS = {
-    # Calificativos generales de calidad
-    "excelente", "espectacular", "increible", "magnifico", "magnificа",
-    "maravilloso", "maravillosa", "fantastico", "fantastica",
-    "extraordinario", "extraordinaria",
-
-    # Apariencia y estética
-    "hermoso", "hermosa", "bonito", "bonita", "lindo", "linda",
-    "precioso", "preciosa", "elegante", "distinguido", "distinguida",
-    "disenado", "disenada",             # diseñado con cuidado
-
-    # Luz y espacio
-    "luminoso", "luminosa", "amplio", "amplia", "espacioso", "espaciosa",
-    "soleado", "soleada", "iluminado", "iluminada",
-    "ventilado", "ventilada", "aireado", "aireada",
-
-    # Modernidad y estado
-    "moderno", "moderna", "nuevo", "nueva", "flamante",
-    "renovado", "renovada", "remodelado", "remodelada",
-    "actualizado", "actualizada",
-
-    # Ubicación y entorno
-    "privilegiado", "privilegiada", "exclusivo", "exclusiva",
-    "tranquilo", "tranquila", "seguro", "segura",
-    "bien ubicado", "bien ubicada",
-    "estrategico", "estrategica",
-
-    # Comodidad y funcionalidad
-    "comodo", "comoda", "acogedor", "acogedora",
-    "funcional", "practico", "practica",
-    "perfecto", "perfecta", "ideal", "optimo", "optima",
-    "inigualable", "incomparable",
-
-    # Premium / lujo
-    "lujoso", "lujosa", "premium", "exquisito", "exquisita",
-    "unico", "unica", "especial",
-
-    # Adjetivos frecuentes en listings colombianos
-    "agradable", "acogedor", "acogedora", "impecable",
-}
-
-NEGATIVAS = {
-    # Estado deteriorado
-    "deteriorado", "deteriorada", "descuidado", "descuidada",
-    "abandonado", "abandonada", "viejo", "vieja",
-
-    # Necesidad de intervención
-    "necesita", "requiere", "para remodelar", "sin remodelar",
-    "arreglar", "reparar", "arreglado", "reparado",   # sólo si es imperativo
-    "problema", "problemas", "falla", "fallas",
-    "averia", "averiado", "averiada",
-    "goteras", "grietas", "humedad",
-
-    # Ruido y contaminación
-    "ruidoso", "ruidosa", "contaminado", "contaminada",
-
-    # Tamaño reducido
-    "pequeno", "pequena", "reducido", "reducida", "diminuto", "diminuta",
-
-    # Oscuro / sin luz
-    "oscuro", "oscura", "humedo", "humeda", "sombrio", "sombria",
-
-    # Antigüedad negativa
-    "anticuado", "anticuada", "obsoleto", "obsoleta",
-    "original", "sin mejorar",   # "en estado original" = sin intervención
-
-    # Urgencia de venta (señal de precio bajo)
-    "urgente", "rematar", "remato", "remate",
-    "liquidar", "liquidacion",
-
-    # Expresiones de carencia
-    "sin garaje", "sin parqueadero", "sin deposito", "sin ascensor",
-    "dano", "danos",                # daño / daños
-}
-
-
-def calcular_sentimiento(texto: pd.Series) -> pd.Series:
-    """
-    Calcula el score de sentimiento para cada texto en la Serie.
-
-    Proceso:
-      1. Se separa el texto en palabras individuales (split por espacios).
-      2. Se cuenta cuántas caen en el léxico POSITIVAS y cuántas en NEGATIVAS.
-      3. Score = (pos − neg) / (pos + neg + 1)
-         El +1 en el denominador sirve como suavizante para evitar división por
-         cero cuando no hay palabras del léxico en el texto (el score resulta 0).
-
-    Limitación del léxico de palabras simples: no detecta negaciones
-    ("no es luminoso" se contaría como positivo). Para un modelo de producción
-    se recomendaría SpaCy con análisis de dependencias.
-
-    Retorna:
-        Serie de floats en rango ≈ [−1, 1], donde:
-          > 0 → texto predominantemente positivo
-          = 0 → neutro o sin palabras del léxico
-          < 0 → texto predominantemente negativo
-    """
-    def _score(txt: str) -> float:
-        palabras = txt.split()
-        pos = sum(1 for p in palabras if p in POSITIVAS)
-        neg = sum(1 for p in palabras if p in NEGATIVAS)
-        return (pos - neg) / (pos + neg + 1)
-
-    return texto.apply(_score)
-
-
-# =============================================================================
 # EXTRACCIÓN DE PARQUEADEROS DESDE TEXTO
 # =============================================================================
 
@@ -800,89 +690,6 @@ def extraer_piso(texto: pd.Series) -> pd.Series:
 
 
 # =============================================================================
-# EXTRACCIÓN DE BAÑOS DESDE TEXTO
-# =============================================================================
-
-def extraer_banos(texto: pd.Series) -> pd.Series:
-    """
-    Extrae el número de baños mencionado en el texto del anuncio.
-
-    Contexto:
-        El campo estructurado `bathrooms` del dataset tiene muchos valores
-        faltantes. Esta función extrae el conteo desde el texto libre como
-        variable complementaria / de respaldo.
-
-    Nota sobre baños en listados colombianos:
-        - "baño completo"  : baño con sanitario, lavamanos y ducha (baño entero).
-        - "baño social"    : baño de visitas con sanitario y lavamanos (medio baño).
-        - "baño auxiliar"  : igual que baño social; a veces en habitaciones.
-        - Cuando el anuncio dice "3 baños 1 social", el total puede ser 3 o 4
-          según la interpretación. Aquí extraemos el primer número mencionado
-          antes de "baño(s)" como aproximación del total de baños completos.
-
-    Estrategia (por orden de prioridad):
-        1. Número arábigo seguido de "baño(s)":
-               "3 baños" → 3,  "2 banos" → 2
-        2. Número arábigo precede con sufijo ordinal:
-               "banos: 2" → 2 (número DESPUÉS de la keyword)
-        3. Número en letras antes de "baño(s)":
-               "dos baños" → 2,  "tres banos" → 3
-        4. Mención de "baño social" o "baño auxiliar" sin número explícito:
-               → al menos 1 baño (retorna 1 como piso mínimo)
-        5. Sin mención de baño alguno → np.nan
-
-    Límite máximo:
-        Se aplica un tope de 15 baños para filtrar falsos positivos
-        (números grandes que el regex captura fuera de contexto).
-    """
-    _MAX_BANOS = 15
-
-    # Mapa de números en letras a enteros (géneros masculino y femenino)
-    _letras = {
-        "un": 1, "uno": 1, "una": 1,
-        "dos": 2, "tres": 3, "cuatro": 4,
-        "cinco": 5, "seis": 6, "siete": 7,
-    }
-
-    def _extraer(txt: str):
-        # ── Paso 1: "N baño(s)" — número arábigo ANTES de la keyword ─────────
-        # Se exige espacio (\s+) entre número y keyword para no capturar
-        # códigos de propiedad como "ref123banos".
-        m = re.search(r"\b(\d{1,2})\s+bano[s]?\b", txt)
-        if m:
-            val = int(m.group(1))
-            if val == 0:
-                return np.nan          # "0 baños" no es informativo
-            return val if val <= _MAX_BANOS else np.nan
-
-        # ── Paso 2: "baño(s) N" — número arábigo DESPUÉS de la keyword ───────
-        # Patrón: "baños: 2", "baños 2" (menos común pero presente)
-        m = re.search(r"\bbano[s]?\s*[:\-]?\s*(\d{1,2})\b", txt)
-        if m:
-            val = int(m.group(1))
-            return val if 1 <= val <= _MAX_BANOS else np.nan
-
-        # ── Paso 3: número en letras ANTES de "baño(s)" ──────────────────────
-        # "dos baños", "tres banos", "cuatro baños"
-        m2 = re.search(
-            r"\b(un[ao]?|dos|tres|cuatro|cinco|seis|siete)\s+bano[s]?\b", txt
-        )
-        if m2:
-            return _letras.get(m2.group(1), np.nan)
-
-        # ── Paso 4: mención de baño social/auxiliar sin número ────────────────
-        # Si el anuncio menciona "baño social" o "baño auxiliar" sin indicar
-        # la cantidad total, asumimos al menos 1 baño en el inmueble.
-        if re.search(r"\bbano\b", txt):
-            return 1
-
-        # ── Sin mención ───────────────────────────────────────────────────────
-        return np.nan
-
-    return texto.apply(_extraer)
-
-
-# =============================================================================
 # CÁLCULO DE AMENIDADES
 # =============================================================================
 
@@ -890,31 +697,25 @@ def calcular_amenidades(texto: pd.Series) -> pd.DataFrame:
     """
     Calcula tres variables de amenidades a partir de AMENIDADES_DICT:
 
-      1. `gimnasio`      : dummy (0/1) — ¿menciona explícitamente un gimnasio?
+      1. `gimnasio`      : 1.0 si menciona gimnasio/gym/fitness, NaN si no.
                            Se extrae por separado porque es la amenidad más
                            frecuente (~8,059 menciones) y con mayor impacto
                            en precio en conjuntos de Chapinero.
 
-      2. `amenidades`    : dummy (0/1) — ¿menciona AL MENOS UNA amenidad
-                           de cualquier categoría (agua/bienestar, deportiva,
-                           social, infraestructura)?
+      2. `amenidades`    : 1.0 si menciona AL MENOS UNA amenidad, NaN si ninguna.
 
-      3. `num_amenidades`: entero — número de TIPOS DE AMENIDAD distintos
-                           presentes en el anuncio.
+      3. `num_amenidades`: número de tipos de amenidad mencionados (float), NaN si ninguna.
                            Cada clave de AMENIDADES_DICT cuenta como 1 si
-                           alguno de sus patrones hace match, sin importar
-                           cuántos patrones distintos de esa misma amenidad
-                           aparezcan.
+                           alguno de sus patrones hace match.
                            Ejemplos:
-                             piscina + jacuzzi + gimnasio → num_amenidades = 3
-                             solo bbq                     → num_amenidades = 1
-                             ninguna                      → num_amenidades = 0
+                             piscina + jacuzzi + gimnasio → 3.0
+                             solo bbq                     → 1.0
+                             ninguna                      → NaN
 
-    Diseño:
-        Se itera sobre AMENIDADES_DICT aplicando dummy_busqueda() a cada
-        amenidad. Esto produce una matriz binaria (n_filas × n_amenidades)
-        cuya suma por fila es `num_amenidades`. El resultado de gimnasio
-        se extrae directamente de esa matriz.
+    Por qué NaN en vez de 0 para "ninguna amenidad":
+        Un 0 haría indistinguible "buscamos y no encontramos ninguna" de
+        "el texto estaba vacío y no pudimos buscar". Con NaN, el modelo
+        puede tratarlo como información faltante.
 
     Parámetros:
         texto : Serie con texto combinado y normalizado (salida de combinar_texto).
@@ -922,22 +723,22 @@ def calcular_amenidades(texto: pd.Series) -> pd.DataFrame:
     Retorna:
         DataFrame con tres columnas: 'gimnasio', 'amenidades', 'num_amenidades'.
     """
-    # Construimos un DataFrame donde cada columna es una amenidad (0/1)
-    # Usamos dict-comprehension para aplicar dummy_busqueda a cada amenidad
+    # Cada columna del DataFrame es 1.0 (mencionada) o NaN (no mencionada),
+    # gracias al cambio en dummy_busqueda.
     dummies = pd.DataFrame(
         {nombre: dummy_busqueda(texto, patrones)
          for nombre, patrones in AMENIDADES_DICT.items()}
     )
 
-    # `num_amenidades`: suma de las columnas binarias por fila
-    # Cada amenidad con al menos un patrón activo aporta 1 al total
-    num_amenidades = dummies.sum(axis=1).astype(int)
+    # `num_amenidades`: suma de 1.0s por fila (NaN se ignoran con skipna=True).
+    # Si ninguna amenidad fue mencionada, la suma es 0.0 → convertir a NaN.
+    conteo = dummies.sum(axis=1)
+    num_amenidades = conteo.where(conteo > 0, other=np.nan)
 
-    # `amenidades`: 1 si hay al menos una amenidad presente, 0 si ninguna
-    amenidades = (num_amenidades > 0).astype(int)
+    # `amenidades`: 1.0 si num_amenidades no es NaN (hay al menos una), NaN si no.
+    amenidades = num_amenidades.apply(lambda x: 1.0 if pd.notna(x) else np.nan)
 
-    # `gimnasio`: extraído directamente de la columna correspondiente
-    # Se mantiene como variable separada por su relevancia individual
+    # `gimnasio`: ya es 1.0/NaN directamente desde dummy_busqueda.
     gimnasio = dummies["gimnasio"]
 
     return pd.DataFrame({
@@ -1007,62 +808,37 @@ def calcular_tfidf(tfidf: TfidfVectorizer, corpus: pd.Series) -> np.ndarray:
 def agregar_variables_texto(df: pd.DataFrame, tfidf: TfidfVectorizer) -> pd.DataFrame:
     """
     Aplica todas las extracciones de texto sobre el DataFrame y retorna
-    una copia del mismo con las 14 columnas nuevas añadidas al final.
+    una copia del mismo con las 11 columnas nuevas añadidas al final.
 
-    El DataFrame resultante mantiene TODAS las columnas originales del CSV
-    (property_id, city, price, surface_total, rooms, etc.) más las nuevas.
-    Esto permite usar el archivo resultante directamente como input de modelos.
+    Convención de missings:
+        Dummies y amenidades → 1.0 si mencionado, NaN si no mencionado.
+        Numéricas (parqueaderos, piso) → número si extraído, NaN si no.
+        tfidf_premium → score continuo (0 es un valor válido: sin términos premium).
 
     Parámetros:
         df    : DataFrame original (train o test), con columnas title y description.
         tfidf : vectorizador TF-IDF ya ajustado sobre el corpus de train.
     """
-    # Texto combinado y normalizado: base de todas las extracciones
     texto = combinar_texto(df)
+    out   = df.copy()
 
-    # Partimos de una copia del DataFrame original para no modificarlo
-    out = df.copy()
-
-    # ── 1. Dummies de mención ─────────────────────────────────────────────────
-    # Para cada variable dummy, se aplican todos sus patrones regex en una sola
-    # pasada con OR (|). El resultado es 1 si algún patrón hace match, 0 si no.
+    # ── 1. Dummies de mención (1.0 / NaN) ────────────────────────────────────
+    # Resultado de dummy_busqueda: 1.0 si el patrón apareció, NaN si no.
     for nombre, patrones in PATRONES.items():
         out[nombre] = dummy_busqueda(texto, patrones)
 
-    # ── 2. Sentimiento del anuncio ────────────────────────────────────────────
-    # Score de polaridad léxica: (positivas − negativas) / (total_relevantes + 1)
-    out["sentimiento_score"] = calcular_sentimiento(texto)
-
-    # ── 3. Longitud de la descripción ─────────────────────────────────────────
-    # Se mide ANTES de normalizar, sobre el campo original, para preservar la
-    # longitud real del texto tal como lo escribió el anunciante.
-    # Anuncios más largos tienden a correlacionar con precios más altos
-    # (proxy de esfuerzo del vendedor — Levmovitz & Munneke, 2020).
-    out["longitud_desc"] = df["description"].fillna("").str.len()
-
-    # ── 4. Score TF-IDF de términos premium ───────────────────────────────────
-    # Se usa el vectorizador ajustado sobre train para transformar el corpus
-    # actual (puede ser train o test). La suma por filas da un escalar por doc.
+    # ── 2. Score TF-IDF de términos premium ───────────────────────────────────
+    # Vectorizador ajustado sólo sobre train → sin data leakage en test.
+    # 0 es un valor válido (ningún término premium en el anuncio).
     out["tfidf_premium"] = calcular_tfidf(tfidf, texto)
 
-    # ── 5. Parqueaderos extraídos del texto ───────────────────────────────────
-    # np.nan cuando no hay mención → permite distinguir "sin garaje" de "no mencionado"
+    # ── 3. Parqueaderos extraídos del texto (número / NaN) ────────────────────
     out["parqueaderos_txt"] = extraer_parqueaderos(texto)
 
-    # ── 6. Piso extraído del texto ────────────────────────────────────────────
-    # np.nan cuando no hay mención → el imputador del modelo puede manejarlo
+    # ── 4. Piso extraído del texto (número / NaN) ─────────────────────────────
     out["piso_txt"] = extraer_piso(texto)
 
-    # ── 7. Baños extraídos del texto ──────────────────────────────────────────
-    # Complementa el campo estructurado `bathrooms` del CSV, que tiene NAs.
-    # np.nan cuando no hay mención del número de baños en el texto.
-    out["banos_txt"] = extraer_banos(texto)
-
-    # ── 8. Amenidades ─────────────────────────────────────────────────────────
-    # `gimnasio`      : dummy — menciona gimnasio/gym/fitness específicamente
-    # `amenidades`    : dummy — menciona al menos una amenidad de cualquier tipo
-    # `num_amenidades`: entero — cuántos tipos distintos de amenidad se mencionan
-    # Las tres columnas se calculan en una sola pasada sobre AMENIDADES_DICT.
+    # ── 5. Amenidades (1.0 / NaN  y  conteo / NaN) ───────────────────────────
     amen = calcular_amenidades(texto)
     out["gimnasio"]       = amen["gimnasio"]
     out["amenidades"]     = amen["amenidades"]
@@ -1086,25 +862,18 @@ def resumen(df: pd.DataFrame, nombre: str) -> None:
     print(f"  {nombre}  — {len(df):,} filas")
     print(f"{'='*60}")
 
-    # Dummies de mención de características del inmueble
-    cols_dummy_prop = ["remodelado", "vista_panoramica", "deposito",
-                       "conjunto_cerrado", "balcon_terraza"]
-    print("\nCaracterísticas del inmueble — tasa de mención:")
-    for c in cols_dummy_prop:
-        tasa = df[c].mean() * 100
+    # Dummies: tasa de mención = % de filas con valor 1.0 (NaN se excluyen del denominador)
+    # notna().mean() equivale a  n_con_mención / n_total_filas
+    cols_dummy = ["remodelado", "vista_panoramica", "deposito",
+                  "conjunto_cerrado", "balcon_terraza", "gimnasio", "amenidades"]
+    print("\nTasa de mención (sobre el total de filas):")
+    for c in cols_dummy:
+        tasa = df[c].notna().mean() * 100
         print(f"  {c:<22}: {tasa:5.1f}%")
 
-    # Dummies de amenidades
-    cols_dummy_amen = ["gimnasio", "amenidades"]
-    print("\nAmenidades — tasa de mención:")
-    for c in cols_dummy_amen:
-        tasa = df[c].mean() * 100
-        print(f"  {c:<22}: {tasa:5.1f}%")
-
-    # Numéricas: estadísticas descriptivas básicas
-    cols_num = ["sentimiento_score", "longitud_desc", "tfidf_premium",
-                "parqueaderos_txt", "piso_txt", "banos_txt", "num_amenidades"]
-    print("\nVariables numéricas — estadísticas básicas:")
+    # Numéricas: estadísticas sobre filas con valor no-NaN
+    cols_num = ["tfidf_premium", "parqueaderos_txt", "piso_txt", "num_amenidades"]
+    print("\nVariables numéricas — estadísticas básicas (excluye NaN):")
     print(df[cols_num].describe().round(3).to_string())
 
 
