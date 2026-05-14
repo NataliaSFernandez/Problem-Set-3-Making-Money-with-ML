@@ -1,3 +1,26 @@
+# =============================================================================
+# PROYECTO: Problem Set 3 — Making Money with ML
+# =============================================================================
+
+# ── Datos derivados y cache (reproducibles desde los scripts) ─────────────────
+00_data/processed/          # CSVs procesados y con features (62 MB)
+00_data/raw/osm/            # Cache de POIs y vías descargados de BigQuery/OSM
+cache/                      # Cache de sesión interna (no es dato del proyecto)
+
+# ── Credenciales y configuración local ───────────────────────────────────────
+.env                        # Variables de entorno con rutas/claves locales
+*.json                      # Archivos JSON con credenciales de Google Cloud
+!package.json               # Excepciones: JSON que SÍ deben commitearse
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# =============================================================================
+# Python (template estándar)
+# =============================================================================
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
