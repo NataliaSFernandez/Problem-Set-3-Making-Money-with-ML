@@ -147,7 +147,7 @@ DEVICE = (torch.device("mps")  if torch.backends.mps.is_available() else
 # en el registry sin modificar el resto del código.
 
 AUTOR    = "Jonathan"
-MODEL_ID = "NN_002"
+MODEL_ID = "06_NN"
 
 # ── Hiperparámetros del entrenamiento ─────────────────────────────────────────
 EPOCHS     = 200   # máximo de épocas; Early Stopping detiene antes si converge
