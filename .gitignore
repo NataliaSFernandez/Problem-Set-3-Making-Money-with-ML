@@ -248,3 +248,5 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+00_data/processed/train_texto_lasso.csv
+00_data/processed/test_texto_lasso.csv
