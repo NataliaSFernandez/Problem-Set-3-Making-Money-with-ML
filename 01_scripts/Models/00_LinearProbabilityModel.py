@@ -476,9 +476,7 @@ def main() -> None:
     print(f"  Cuadrícula {SPATIAL_GRID}×{SPATIAL_GRID} → {n_grupos} bloques con datos")
  
     # ── [4/8] Estandarización ─────────────────────────────────────────────────
-    # OLS es invariante a la escala, pero StandardScaler hace que los
-    # coeficientes sean comparables entre features (betas estandarizados).
-    # CRÍTICO: el scaler se ajusta SOLO sobre train para evitar data leakage.
+
     print("\n[4/8] Estandarizando features...")
     scaler  = StandardScaler()
     X_train = scaler.fit_transform(X_train_raw)
@@ -546,8 +544,8 @@ def main() -> None:
  
     print(f"\n{'='*60}")
     print(f"  LISTO — {MODEL_ID}")
-    print(f"  MAE_log aleatorio = {mae_rand:.5f} ")
-    print(f"  MAE_log espacial  = {mae_esp:.5f} ")
+    print(f"  MAE_log aleatorio = {mae_rand:.5f} )")
+    print(f"  MAE_log espacial  = {mae_esp:.5f}  (honesto)")
     print(f"  Sesgo Δ           = {sesgo:+.5f}")
     print(f"  Submission:  03_submissions/{sub_name}")
     print(f"{'='*60}")
