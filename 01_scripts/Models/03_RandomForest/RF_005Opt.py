@@ -1,26 +1,30 @@
-#!/usr/bin/env python3
+
 """
-Random Forest — RF_002 FEATURES COMPLETAS
-==========================================
+Random Forest — RF_005 CV ESPACIAL PARA ELEGIR max_depth
+=========================================================
 
- cambias respecto a RF_001?
+¿Qué cambia respecto a RF_004?
 -------------------------------
-  RF_001 usaba solo features estructurales (7 variables).
-  RF_002 agrega las dos fuentes de información adicionales:
-    - TEXT (11 variables extraídas del título/descripción)
-    - OSM  (10 variables de localización desde OpenStreetMap)
+  En RF_003 y RF_004 se eligio  max_depth=10 de forma arbitraria, sin ningún criterio sistemático
+  RF_005 busca los mejores hiperparamtros:
+    - Busca max_depth en {8, 10, 15}
+    - Usa CV ESPACIAL  como criterio de selección
+    - Elige el depth que minimiza el MAE espacial 
+    - Entrena el modelo final con ese depth óptimo
 
-  Mismos hiperparámetros de RF_001:
-    n_estimators=100, max_depth=None, min_samples_leaf=1, max_features="sqrt"
+  Se mantiene n_estimators=500 y min_samples_leaf=5 de RF_004
 
-  El objetivo: aislar el efecto de la ingeniería de features:
-    ΔMAE(RF_002 − RF_001) = valor de OSM + texto
+Grid search
+-----------
+  Candidatos: max_depth ∈ {8, 10, 15}
+  Criterio:   MAE_espacial mínimo (CV espacial, GroupKFold 5-fold)
+  Estrategia: grid search exhaustivo (3 valores × 5 folds = 15 ajustes de RF)
 
-Hiperparámetros (idénticos a RF_001)
---------------------------------------
-    n_estimators    = 100
-    max_depth       = None
-    min_samples_leaf= 1
+Hiperparámetros del modelo final
+----------------------------------
+    n_estimators    = 500
+    max_depth       = elegido por CV espacial
+    min_samples_leaf= 5
     max_features    = "sqrt"
 """
 
@@ -49,8 +53,8 @@ warnings.filterwarnings("ignore")
 # SECCIÓN 1: CONFIGURACIÓN
 # =============================================================================
 
-AUTOR        = "Natalia"
-MODEL_ID     = "RF_002"
+AUTOR        = "Equipo"
+MODEL_ID     = "RF_005"
 SEED         = 42
 CV_FOLDS     = 5
 SPATIAL_GRID = 5
@@ -64,15 +68,18 @@ REGISTRY    = BASE / "02_outputs" / "model_registry.xlsx"
 for d in [SUBMISSIONS, DIR_MODEL, BASE / "02_outputs"]:
     d.mkdir(parents=True, exist_ok=True)
 
-# ── Hiperparámetros (idénticos a RF_001) ─────────────────────────────────────
-N_ESTIMATORS     = 100
-MAX_DEPTH        = None
-MIN_SAMPLES_LEAF = 1
+# ── Grilla de búsqueda ────────────────────────────────────────────────────────
+DEPTH_CANDIDATES = [8, 10, 15]   # valores a evaluar con CV espacial
+
+# ── Hiperparámetros fijos (heredados de RF_004) ───────────────────────────────
+N_ESTIMATORS     = 500
+MIN_SAMPLES_LEAF = 5
 MAX_FEATURES     = "sqrt"
+# MAX_DEPTH se determina por CV espacial → se registra tras la búsqueda
 
 
 # =============================================================================
-# SECCIÓN 2: FEATURES
+# SECCIÓN 2: FEATURES (idénticas a RF_002, 003, 004)
 # =============================================================================
 
 STRUCTURAL = [
@@ -148,8 +155,73 @@ def cv_espacial(rf, X, y, grupos):
 
 
 # =============================================================================
-# SECCIÓN 5: DIAGNÓSTICOS
+# SECCIÓN 5: GRID SEARCH SOBRE max_depth VÍA CV ESPACIAL
 # =============================================================================
+
+def buscar_best_depth(X, y, grupos):
+    """
+    Evalúa cada candidato de max_depth con CV espacial y devuelve el mejor.
+
+      Para cada depth ∈ DEPTH_CANDIDATES:
+        → Ajustar RF con ese depth en 5 folds espaciales
+        → Calcular MAE_esp promedio
+      → Elegir el depth con menor MAE_esp
+
+    Esto garantiza que el hiperparámetro está optimizado para generalizar
+    a zonas geográficas no vistas, no solo para folds aleatorios.
+    """
+    resultados = []
+    print(f"  Evaluando max_depth = {DEPTH_CANDIDATES} con CV espacial...")
+    for depth in DEPTH_CANDIDATES:
+        rf = RandomForestRegressor(
+            n_estimators=N_ESTIMATORS,
+            max_depth=depth,
+            min_samples_leaf=MIN_SAMPLES_LEAF,
+            max_features=MAX_FEATURES,
+            n_jobs=-1,
+            random_state=SEED,
+        )
+        mae, std = cv_espacial(rf, X, y, grupos)
+        resultados.append({"max_depth": depth, "mae_esp": mae, "std_esp": std})
+        print(f"    depth={depth:>3}  →  MAE_esp={mae:.5f} ± {std:.5f}")
+
+    df_grid    = pd.DataFrame(resultados)
+    best_idx   = df_grid["mae_esp"].idxmin()
+    best_depth = int(df_grid.loc[best_idx, "max_depth"])
+    best_mae   = float(df_grid.loc[best_idx, "mae_esp"])
+    best_std   = float(df_grid.loc[best_idx, "std_esp"])
+    print(f"\n  ✓ Mejor depth = {best_depth}  (MAE_esp={best_mae:.5f})")
+    return best_depth, best_mae, best_std, df_grid
+
+
+# =============================================================================
+# SECCIÓN 6: DIAGNÓSTICOS
+# =============================================================================
+
+def plot_grid_search(df_grid, best_depth):
+    """
+    Curva de validación espacial: MAE_esp vs. max_depth.
+    Muestra cómo cambia el error a medida que el árbol se hace más profundo.
+    """
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.errorbar(
+        df_grid["max_depth"], df_grid["mae_esp"],
+        yerr=df_grid["std_esp"],
+        fmt="o-", color="#e74c3c", capsize=5, lw=2,
+        label="CV espacial"
+    )
+    ax.axvline(best_depth, color="black", lw=1.2, linestyle="--",
+               label=f"best depth = {best_depth}")
+    ax.set_xlabel("max_depth")
+    ax.set_ylabel("MAE log(price)")
+    ax.set_title(f"Grid search max_depth — {MODEL_ID}\n"
+                 f"Criterio: CV espacial (GroupKFold {CV_FOLDS}-fold)")
+    ax.legend()
+    plt.tight_layout()
+    fig.savefig(str(DIR_MODEL / "grid_search_depth.png"), dpi=150)
+    plt.close(fig)
+    print(f"  Guardado: {MODEL_ID}/grid_search_depth.png")
+
 
 def plot_importancia(rf, feature_cols):
     imp = pd.Series(rf.feature_importances_, index=feature_cols).sort_values()
@@ -194,7 +266,7 @@ def plot_residuos(y_true, y_pred):
 
 def plot_cv_comparacion(mae_rand, std_rand, mae_esp, std_esp):
     fig, ax = plt.subplots(figsize=(6, 4))
-    labels = ["CV ", "CV Espacial"]
+    labels = ["CV Aleatorio", "CV Espacial"]
     means  = [mae_rand, mae_esp]
     stds   = [std_rand, std_esp]
     colors = ["#3498db", "#e74c3c"]
@@ -214,20 +286,20 @@ def plot_cv_comparacion(mae_rand, std_rand, mae_esp, std_esp):
 
 
 # =============================================================================
-# SECCIÓN 6: SUBMISSION
+# SECCIÓN 7: SUBMISSION
 # =============================================================================
 
-def generar_submission(test, y_pred_log):
+def generar_submission(test, y_pred_log, best_depth):
     sub = pd.DataFrame({
         "property_id": test["property_id"],
         "price":       np.exp(y_pred_log),
     })
-    depth_str = "dNone" if MAX_DEPTH is None else f"d{MAX_DEPTH}"
-    mf_str    = str(MAX_FEATURES).replace(".", "")
-    sub_name  = (
-        f"RF_ntrees{N_ESTIMATORS}_{depth_str}"
+    # best_depth se conoce solo tras el grid search 
+    mf_str   = str(MAX_FEATURES).replace(".", "")
+    sub_name = (
+        f"RF_ntrees{N_ESTIMATORS}_d{best_depth}"
         f"_leaf{MIN_SAMPLES_LEAF}_mf{mf_str}"
-        f"_cv{CV_FOLDS}_feat{MODEL_ID}.csv"
+        f"_cv{CV_FOLDS}_gridESP_{MODEL_ID}.csv"
     )
     sub.to_csv(SUBMISSIONS / sub_name, index=False)
     print(f"  Submission: 03_submissions/{sub_name}  ({len(sub):,} filas)")
@@ -235,15 +307,12 @@ def generar_submission(test, y_pred_log):
 
 
 # =============================================================================
-# SECCIÓN 7: REGISTRO
+# SECCIÓN 8: REGISTRO
 # =============================================================================
 
 def registrar(mae_rand, std_rand, mae_esp, std_esp, mae_train,
-              n_features, sub_name):
+              n_features, best_depth, sub_name):
     sesgo = mae_esp - mae_rand
-    n_str = len([c for c in STRUCTURAL])
-    n_txt = len([c for c in TEXT])
-    n_osm = len([c for c in OSM])
     nueva = {
         "model_id":          MODEL_ID,
         "fecha":             str(date.today()),
@@ -251,7 +320,7 @@ def registrar(mae_rand, std_rand, mae_esp, std_esp, mae_train,
         "algoritmo":         "RandomForest",
         "n_features":        n_features,
         "n_estimators":      N_ESTIMATORS,
-        "max_depth":         str(MAX_DEPTH),
+        "max_depth":         str(best_depth),
         "min_samples_leaf":  MIN_SAMPLES_LEAF,
         "max_features":      MAX_FEATURES,
         "cv_folds":          CV_FOLDS,
@@ -262,14 +331,15 @@ def registrar(mae_rand, std_rand, mae_esp, std_esp, mae_train,
         "train_mae_log":     round(mae_train, 5),
         "sesgo_delta":       round(sesgo,     5),
         "kaggle_public_MAE": None,
-        "features_grupos":   f"structural={n_str}, text={n_txt}, osm={n_osm}, es_apartamento",
+        "features_grupos":   f"structural={len(STRUCTURAL)}, text={len(TEXT)}, osm={len(OSM)}, es_apartamento",
         "spatial_grid":      f"{SPATIAL_GRID}x{SPATIAL_GRID}",
         "submission_file":   sub_name,
         "notas": (
-            f"Features completas (structural+text+OSM). "
-            f"Mismos hiperparámetros que RF_001 → aísla efecto de features. "
-            f"n_est={N_ESTIMATORS}, depth=None, leaf=1. "
-            f"Sesgo ={sesgo:+.5f}."
+            f"Grid search max_depth={DEPTH_CANDIDATES} via CV espacial. "
+            f"Best depth={best_depth}. "
+            f"n_estimators={N_ESTIMATORS}, min_samples_leaf={MIN_SAMPLES_LEAF}. "
+            f"Features completas. "
+            f"Sesgo Δ={sesgo:+.5f}."
         ),
     }
     df_new = pd.DataFrame([nueva])
@@ -292,62 +362,79 @@ def registrar(mae_rand, std_rand, mae_esp, std_esp, mae_train,
 
 
 # =============================================================================
-# SECCIÓN 8: MAIN
+# SECCIÓN 9: MAIN
 # =============================================================================
 
 def main():
     print(f"{'='*60}")
-    print(f"  RANDOM FOREST — {MODEL_ID}  (Features completas)")
+    print(f"  RANDOM FOREST — {MODEL_ID}  (CV espacial elige max_depth)")
     print(f"{'='*60}")
 
-    print("\n[1/7] Cargando datos...")
+    print("\n[1/8] Cargando datos...")
     train, test = cargar_datos()
     y_train = np.log(train["price"].values)
     print(f"  TRAIN: {train.shape[0]:,} | TEST: {test.shape[0]:,}")
 
-    print("\n[2/7] Construyendo features...")
+    print("\n[2/8] Construyendo features...")
     X_train_df   = construir_features(train)
     feature_cols = list(X_train_df.columns)
     X_test_df    = construir_features(test, fit_cols=feature_cols)
     X_train      = X_train_df.values.astype(float)
     X_test       = X_test_df.values.astype(float)
-    print(f"  Features: {len(feature_cols)}  (structural + text + OSM + es_apartamento)")
+    print(f"  Features: {len(feature_cols)}")
 
-    print("\n[3/7] Construyendo grupos espaciales...")
+    print("\n[3/8] Construyendo grupos espaciales...")
     grupos = construir_grupos_espaciales(train)
     print(f"  Cuadrícula {SPATIAL_GRID}×{SPATIAL_GRID} → {len(np.unique(grupos))} bloques")
 
-    rf = RandomForestRegressor(
-        n_estimators=N_ESTIMATORS, max_depth=MAX_DEPTH,
-        min_samples_leaf=MIN_SAMPLES_LEAF, max_features=MAX_FEATURES,
-        n_jobs=-1, random_state=SEED,
+    # ── Grid search ──────────────────────────────────────────────────────────
+    print(f"\n[4/8] Grid search sobre max_depth via CV espacial...")
+    best_depth, best_mae_esp, best_std_esp, df_grid = buscar_best_depth(
+        X_train, y_train, grupos
+    )
+    # Guardar tabla del grid search
+    df_grid.to_csv(DIR_MODEL / "grid_search_depth.csv", index=False)
+    plot_grid_search(df_grid, best_depth)
+
+    # ── CV aleatorio con el depth óptimo ──────────────────────────────────────
+    rf_final = RandomForestRegressor(
+        n_estimators=N_ESTIMATORS,
+        max_depth=best_depth,
+        min_samples_leaf=MIN_SAMPLES_LEAF,
+        max_features=MAX_FEATURES,
+        n_jobs=-1,
+        random_state=SEED,
     )
 
-    print(f"\n[4/7] CV aleatorio ({CV_FOLDS}-fold KFold)...")
-    mae_rand, std_rand = cv_aleatorio(rf, X_train, y_train)
+    print(f"\n[5/8] CV aleatorio con best_depth={best_depth}...")
+    mae_rand, std_rand = cv_aleatorio(rf_final, X_train, y_train)
     print(f"  MAE_log aleatorio = {mae_rand:.5f} ± {std_rand:.5f}")
 
-    print(f"\n[5/7] CV espacial ({CV_FOLDS}-fold GroupKFold)...")
-    mae_esp, std_esp = cv_espacial(rf, X_train, y_train, grupos)
-    sesgo = mae_esp - mae_rand
-    print(f"  MAE_log espacial  = {mae_esp:.5f} ± {std_esp:.5f}  ")
+    # El MAE espacial ya viene del grid search (es el del best depth)
+    mae_esp  = best_mae_esp
+    std_esp  = best_std_esp
+    sesgo    = mae_esp - mae_rand
+    print(f"\n[6/8] CV espacial (resultado del grid search)...")
+    print(f"  MAE_log espacial  = {mae_esp:.5f} ± {std_esp:.5f}")
     print(f"  Sesgo Δ           = {sesgo:+.5f}")
 
-    print("\n[6/7] Modelo final sobre todo el train...")
-    rf.fit(X_train, y_train)
-    mae_train = mean_absolute_error(y_train, rf.predict(X_train))
+    # ── Modelo final ──────────────────────────────────────────────────────────
+    print("\n[7/8] Modelo final sobre todo el train...")
+    rf_final.fit(X_train, y_train)
+    mae_train = mean_absolute_error(y_train, rf_final.predict(X_train))
     print(f"  MAE_log train     = {mae_train:.5f}")
 
-    print("\n[7/7] Diagnósticos, submission y registro...")
-    plot_importancia(rf, feature_cols)
-    plot_residuos(y_train, rf.predict(X_train))
+    print("\n[8/8] Diagnósticos, submission y registro...")
+    plot_importancia(rf_final, feature_cols)
+    plot_residuos(y_train, rf_final.predict(X_train))
     plot_cv_comparacion(mae_rand, std_rand, mae_esp, std_esp)
-    sub_name = generar_submission(test, rf.predict(X_test))
+    sub_name = generar_submission(test, rf_final.predict(X_test), best_depth)
     registrar(mae_rand, std_rand, mae_esp, std_esp, mae_train,
-              len(feature_cols), sub_name)
+              len(feature_cols), best_depth, sub_name)
 
     print(f"\n{'='*60}")
     print(f"  RESUMEN — {MODEL_ID}")
+    print(f"  best max_depth    = {best_depth}  (elegido por CV espacial)")
     print(f"  MAE_log aleatorio = {mae_rand:.5f} ")
     print(f"  MAE_log espacial  = {mae_esp:.5f} ")
     print(f"  Sesgo Δ           = {sesgo:+.5f}")

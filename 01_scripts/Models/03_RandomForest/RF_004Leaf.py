@@ -1,26 +1,20 @@
 #!/usr/bin/env python3
 """
-Random Forest — RF_002 FEATURES COMPLETAS
-==========================================
+Random Forest — RF_004 MIN_SAMPLES_LEAF + MÁS ÁRBOLES
+=======================================================
 
- cambias respecto a RF_001?
+Cambios respecto a RF_003?
 -------------------------------
-  RF_001 usaba solo features estructurales (7 variables).
-  RF_002 agrega las dos fuentes de información adicionales:
-    - TEXT (11 variables extraídas del título/descripción)
-    - OSM  (10 variables de localización desde OpenStreetMap)
+  RF_004 tiene min_samples_leaf=5:
+    - Cada hoja del árbol debe tener al menos 5 observaciones, RF_003 puede tener 1 obs por hoja.
+    - Las predicciones de cada hoja son el promedio de ≥5 precios reales,
+      no de una sola propiedad.
 
-  Mismos hiperparámetros de RF_001:
-    n_estimators=100, max_depth=None, min_samples_leaf=1, max_features="sqrt"
-
-  El objetivo: aislar el efecto de la ingeniería de features:
-    ΔMAE(RF_002 − RF_001) = valor de OSM + texto
-
-Hiperparámetros (idénticos a RF_001)
---------------------------------------
-    n_estimators    = 100
-    max_depth       = None
-    min_samples_leaf= 1
+Hiperparámetros
+---------------
+    n_estimators    = 500   ← sube (más diversidad en el ensemble)
+    max_depth       = 10
+    min_samples_leaf= 5     ← cambio clave: hojas con ≥5 observaciones
     max_features    = "sqrt"
 """
 
@@ -50,7 +44,7 @@ warnings.filterwarnings("ignore")
 # =============================================================================
 
 AUTOR        = "Natalia"
-MODEL_ID     = "RF_002"
+MODEL_ID     = "RF_004"
 SEED         = 42
 CV_FOLDS     = 5
 SPATIAL_GRID = 5
@@ -64,15 +58,15 @@ REGISTRY    = BASE / "02_outputs" / "model_registry.xlsx"
 for d in [SUBMISSIONS, DIR_MODEL, BASE / "02_outputs"]:
     d.mkdir(parents=True, exist_ok=True)
 
-# ── Hiperparámetros (idénticos a RF_001) ─────────────────────────────────────
-N_ESTIMATORS     = 100
-MAX_DEPTH        = None
-MIN_SAMPLES_LEAF = 1
+# ── Hiperparámetros ───────────────────────────────────────────────────────────
+N_ESTIMATORS     = 500   # ↑ más árboles = mayor estabilidad del ensemble
+MAX_DEPTH        = 10
+MIN_SAMPLES_LEAF = 5     # ← cambio clave: hojas suaves con ≥5 obs
 MAX_FEATURES     = "sqrt"
 
 
 # =============================================================================
-# SECCIÓN 2: FEATURES
+# SECCIÓN 2: FEATURES (idénticas a RF_002 y RF_003)
 # =============================================================================
 
 STRUCTURAL = [
@@ -194,7 +188,7 @@ def plot_residuos(y_true, y_pred):
 
 def plot_cv_comparacion(mae_rand, std_rand, mae_esp, std_esp):
     fig, ax = plt.subplots(figsize=(6, 4))
-    labels = ["CV ", "CV Espacial"]
+    labels = ["CV" , "CV Espacial"]
     means  = [mae_rand, mae_esp]
     stds   = [std_rand, std_esp]
     colors = ["#3498db", "#e74c3c"]
@@ -241,9 +235,6 @@ def generar_submission(test, y_pred_log):
 def registrar(mae_rand, std_rand, mae_esp, std_esp, mae_train,
               n_features, sub_name):
     sesgo = mae_esp - mae_rand
-    n_str = len([c for c in STRUCTURAL])
-    n_txt = len([c for c in TEXT])
-    n_osm = len([c for c in OSM])
     nueva = {
         "model_id":          MODEL_ID,
         "fecha":             str(date.today()),
@@ -262,14 +253,14 @@ def registrar(mae_rand, std_rand, mae_esp, std_esp, mae_train,
         "train_mae_log":     round(mae_train, 5),
         "sesgo_delta":       round(sesgo,     5),
         "kaggle_public_MAE": None,
-        "features_grupos":   f"structural={n_str}, text={n_txt}, osm={n_osm}, es_apartamento",
+        "features_grupos":   f"structural={len(STRUCTURAL)}, text={len(TEXT)}, osm={len(OSM)}, es_apartamento",
         "spatial_grid":      f"{SPATIAL_GRID}x{SPATIAL_GRID}",
         "submission_file":   sub_name,
         "notas": (
-            f"Features completas (structural+text+OSM). "
-            f"Mismos hiperparámetros que RF_001 → aísla efecto de features. "
-            f"n_est={N_ESTIMATORS}, depth=None, leaf=1. "
-            f"Sesgo ={sesgo:+.5f}."
+            f"min_samples_leaf=5: suaviza predicciones en zonas escasas. "
+            f"n_estimators=500 para mayor estabilidad. "
+            f"max_depth=10. Features completas. "
+            f"Sesgo Δ={sesgo:+.5f}."
         ),
     }
     df_new = pd.DataFrame([nueva])
@@ -297,7 +288,7 @@ def registrar(mae_rand, std_rand, mae_esp, std_esp, mae_train,
 
 def main():
     print(f"{'='*60}")
-    print(f"  RANDOM FOREST — {MODEL_ID}  (Features completas)")
+    print(f"  RANDOM FOREST — {MODEL_ID}  (min_samples_leaf=5, n_est=500)")
     print(f"{'='*60}")
 
     print("\n[1/7] Cargando datos...")
@@ -311,7 +302,7 @@ def main():
     X_test_df    = construir_features(test, fit_cols=feature_cols)
     X_train      = X_train_df.values.astype(float)
     X_test       = X_test_df.values.astype(float)
-    print(f"  Features: {len(feature_cols)}  (structural + text + OSM + es_apartamento)")
+    print(f"  Features: {len(feature_cols)}")
 
     print("\n[3/7] Construyendo grupos espaciales...")
     grupos = construir_grupos_espaciales(train)
@@ -330,7 +321,7 @@ def main():
     print(f"\n[5/7] CV espacial ({CV_FOLDS}-fold GroupKFold)...")
     mae_esp, std_esp = cv_espacial(rf, X_train, y_train, grupos)
     sesgo = mae_esp - mae_rand
-    print(f"  MAE_log espacial  = {mae_esp:.5f} ± {std_esp:.5f}  ")
+    print(f"  MAE_log espacial  = {mae_esp:.5f} ± {std_esp:.5f}")
     print(f"  Sesgo Δ           = {sesgo:+.5f}")
 
     print("\n[6/7] Modelo final sobre todo el train...")
@@ -348,9 +339,9 @@ def main():
 
     print(f"\n{'='*60}")
     print(f"  RESUMEN — {MODEL_ID}")
-    print(f"  MAE_log aleatorio = {mae_rand:.5f} ")
+    print(f"  MAE_log aleatorio = {mae_rand:.5f}")
     print(f"  MAE_log espacial  = {mae_esp:.5f} ")
-    print(f"  Sesgo Δ           = {sesgo:+.5f}")
+    print(f"  Sesgo           = {sesgo:+.5f}")
     print(f"  Submission: 03_submissions/{sub_name}")
     print(f"{'='*60}")
 

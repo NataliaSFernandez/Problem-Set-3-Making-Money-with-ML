@@ -18,8 +18,8 @@ Pipeline
 --------
 1. Carga  train_final.csv / test_final.csv
 2. Features: solo STRUCTURAL + es_apartamento
-3. CV aleatorio 5-fold  (KFold)      → MAE_rand  (optimista)
-4. CV espacial  5-fold  (GroupKFold) → MAE_esp   (honesto)
+3. CV aleatorio 5-fold  (KFold)      → MAE_rand  
+4. CV espacial  5-fold  (GroupKFold) → MAE_esp  
 5. Modelo final sobre todo el train
 6. Diagnósticos: feature importance, residuos, comparación CV
 7. Submission → 03_submissions/
@@ -172,7 +172,7 @@ def plot_residuos(y_true, y_pred):
  
 def plot_cv_comparacion(mae_rand, std_rand, mae_esp, std_esp):
     fig, ax = plt.subplots(figsize=(6, 4))
-    labels = ["CV Aleatorio\n(optimista)", "CV Espacial\n(honesto)"]
+    labels = ["CV Aleatorio", "CV Espacial"]
     means  = [mae_rand, mae_esp]
     stds   = [std_rand, std_esp]
     colors = ["#3498db", "#e74c3c"]
@@ -300,12 +300,12 @@ def main():
  
     print(f"\n[4/7] CV aleatorio ({CV_FOLDS}-fold KFold)...")
     mae_rand, std_rand = cv_aleatorio(rf, X_train, y_train)
-    print(f"  MAE_log aleatorio = {mae_rand:.5f} ± {std_rand:.5f}  (optimista)")
+    print(f"  MAE_log aleatorio = {mae_rand:.5f} ± {std_rand:.5f} ")
  
     print(f"\n[5/7] CV espacial ({CV_FOLDS}-fold GroupKFold)...")
     mae_esp, std_esp = cv_espacial(rf, X_train, y_train, grupos)
     sesgo = mae_esp - mae_rand
-    print(f"  MAE_log espacial  = {mae_esp:.5f} ± {std_esp:.5f}  (honesto)")
+    print(f"  MAE_log espacial  = {mae_esp:.5f} ± {std_esp:.5f} ")
     print(f"  Sesgo Δ           = {sesgo:+.5f}")
  
     print("\n[6/7] Modelo final sobre todo el train...")
@@ -323,8 +323,8 @@ def main():
  
     print(f"\n{'='*60}")
     print(f"  RESUMEN — {MODEL_ID}")
-    print(f"  MAE_log aleatorio = {mae_rand:.5f}  (optimista)")
-    print(f"  MAE_log espacial  = {mae_esp:.5f}  (honesto)")
+    print(f"  MAE_log aleatorio = {mae_rand:.5f} ")
+    print(f"  MAE_log espacial  = {mae_esp:.5f} ")
     print(f"  Sesgo Δ           = {sesgo:+.5f}")
     print(f"  Submission: 03_submissions/{sub_name}")
     print(f"{'='*60}")
