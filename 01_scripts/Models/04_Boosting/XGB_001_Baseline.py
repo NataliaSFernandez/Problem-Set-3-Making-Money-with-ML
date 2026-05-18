@@ -35,6 +35,36 @@ Estructura de carpetas generada automaticamente al correr el script:
 """
 
 # =============================================================================
+# SECCION -1: INSTALACION AUTOMATICA DE DEPENDENCIAS
+# =============================================================================
+# Garantiza reproducibilidad: cualquier persona puede correr el script
+# sin instalar nada manualmente.
+
+import subprocess
+import sys
+
+def instalar(paquete):
+    subprocess.check_call([sys.executable, "-m", "pip", "install", paquete, "-q"])
+
+try:
+    import xgboost
+except ImportError:
+    print("  Instalando xgboost...")
+    instalar("xgboost")
+
+try:
+    import openpyxl
+except ImportError:
+    print("  Instalando openpyxl...")
+    instalar("openpyxl")
+
+try:
+    import scipy
+except ImportError:
+    print("  Instalando scipy...")
+    instalar("scipy")
+
+# =============================================================================
 # SECCION 0: IMPORTACIONES
 # =============================================================================
 

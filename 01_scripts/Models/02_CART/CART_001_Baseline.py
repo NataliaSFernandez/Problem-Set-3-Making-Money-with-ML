@@ -377,4 +377,28 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main()# =============================================================================
+# SECCION -1: INSTALACION AUTOMATICA DE DEPENDENCIAS
+# =============================================================================
+# Garantiza reproducibilidad: cualquier persona puede correr el script
+# sin instalar nada manualmente.
+
+import subprocess
+import sys
+
+def instalar(paquete):
+    subprocess.check_call([sys.executable, "-m", "pip", "install", paquete, "-q"])
+
+try:
+    import openpyxl
+except ImportError:
+    print("  Instalando openpyxl...")
+    instalar("openpyxl")
+
+try:
+    import sklearn
+except ImportError:
+    print("  Instalando scikit-learn...")
+    instalar("scikit-learn")
+
+
