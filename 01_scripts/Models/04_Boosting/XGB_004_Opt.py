@@ -270,7 +270,8 @@ def plot_curva_aprendizaje(xgb, X_train, y_train):
         X_train, y_train, test_size=0.15, random_state=SEED
     )
     params = {k: v for k, v in xgb.get_params().items()
-              if k not in ["callbacks", "early_stopping_rounds"]}
+              if k not in ["callbacks", "early_stopping_rounds",
+                           "eval_metric", "verbosity"]}
     xgb_eval = XGBRegressor(**params, eval_metric="mae", verbosity=0)
     xgb_eval.fit(
         X_tr, y_tr,
