@@ -58,7 +58,6 @@ warnings.filterwarnings("ignore")
 # SECCIÓN 1: CONFIGURACIÓN
 # =============================================================================
 
-AUTOR        = "Dani"
 MODEL_ID     = "CART_001"
 SEED         = 42
 CV_FOLDS     = 5
@@ -264,8 +263,7 @@ def registrar(mae_rand, std_rand, mae_esp, std_esp, mae_train,
     nueva = {
         "model_id":          MODEL_ID,
         "fecha":             str(date.today()),
-        "autor":             AUTOR,
-        "algoritmo":         "CART",
+                "algoritmo":         "CART",
         "n_features":        n_features,
         "max_depth":         str(MAX_DEPTH),
         "min_samples_leaf":  MIN_SAMPLES_LEAF,

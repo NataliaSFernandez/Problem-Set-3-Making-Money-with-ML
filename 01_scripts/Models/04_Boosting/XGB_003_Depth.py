@@ -90,7 +90,6 @@ warnings.filterwarnings("ignore")
 # SECCION 1: CONFIGURACION
 # =============================================================================
 
-AUTOR        = "Dani"
 MODEL_ID     = "XGB_003"
 SEED         = 42
 CV_FOLDS     = 5
@@ -377,8 +376,7 @@ def registrar(mae_rand, std_rand, mae_esp, std_esp, mae_train,
     nueva = {
         "model_id":          MODEL_ID,
         "fecha":             str(date.today()),
-        "autor":             AUTOR,
-        "algoritmo":         "XGBoost",
+                "algoritmo":         "XGBoost",
         "n_features":        n_features,
         "n_estimators":      N_ESTIMATORS,
         "max_depth":         params.get("max_depth"),
