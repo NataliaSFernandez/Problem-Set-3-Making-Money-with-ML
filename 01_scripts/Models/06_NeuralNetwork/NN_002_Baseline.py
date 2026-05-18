@@ -190,8 +190,8 @@ SPATIAL_GRID = 5  # lado de la cuadrícula geográfica: 5×5 = 25 bloques.
 
 # ── Rutas ─────────────────────────────────────────────────────────────────────
 # Path(__file__) da la ruta absoluta de este script.
-# .parent.parent.parent sube tres niveles: Models/ → 01_scripts/ → raíz.
-BASE        = Path(__file__).parent.parent.parent
+# .parent.parent.parent.parent sube cuatro niveles: 06_NeuralNetwork/ → Models/ → 01_scripts/ → raíz.
+BASE        = Path(__file__).parent.parent.parent.parent
 PROCESSED   = BASE / "00_data" / "processed"
 SUBMISSIONS = BASE / "03_submissions"
 DIR_MODEL   = BASE / "02_outputs" / "Models" / "NeuralNetwork" / MODEL_ID
