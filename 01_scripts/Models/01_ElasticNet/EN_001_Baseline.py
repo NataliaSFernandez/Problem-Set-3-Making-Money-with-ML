@@ -95,8 +95,8 @@ N_ALPHAS     = 100    # número de valores de α que ElasticNetCV prueba en su g
 CV_FOLDS     = 5      # número de folds para ambos CV (aleatorio y espacial)
 SPATIAL_GRID = 5      # divide Bogotá en una cuadrícula 5×5 = 25 bloques espaciales
 
-# Rutas relativas a la raíz del proyecto (3 niveles arriba de este script)
-BASE        = Path(__file__).parent.parent.parent
+# Rutas relativas a la raíz del proyecto (4 niveles arriba de este script)
+BASE        = Path(__file__).parent.parent.parent.parent
 PROCESSED   = BASE / "00_data" / "processed"
 SUBMISSIONS = BASE / "03_submissions"
 DIR_MODEL   = BASE / "02_outputs" / "Models" / "ElasticNet" / MODEL_ID
