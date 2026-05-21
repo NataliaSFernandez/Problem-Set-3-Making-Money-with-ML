@@ -20,7 +20,7 @@ La métrica de evaluación en Kaggle es el **Mean Absolute Error (MAE)** sobre e
 
 | Modelo | Algoritmo | Kaggle MAE público | CV espacial MAE log | Sesgo Δ |
 |---|---|---|---|---|
-| **SL_003** | SuperLearner NNLS (XGB_009 + NN_003 [+ RF_005]) | **$199,851,632** | 0.23244 | +0.06700 |
+| **SL_003** | SuperLearner NNLS (XGB_009 + NN_003) | **$199,851,632** | 0.23244 | +0.06700 |
 | XGB_009 | XGBoost + KNN mediana K=30 + early stopping espacial | $207,886,154 | 0.21079 | +0.03480 |
 | XGB_010 | XGBoost + KNN ponderado por distancia K=30 | $215,636,744 | 0.17260 | +0.02231 |
 
@@ -56,14 +56,19 @@ export GOOGLE_APPLICATION_CREDENTIALS="/ruta/completa/a/credentials.json"
 
 > El archivo `.env` y el JSON de credenciales están en `.gitignore` y nunca deben subirse al repositorio.
 
-### 3. Preparar los datos (orden obligatorio)
+### 3. Preparar los datos
+
+Los archivos `train_final.csv` y `test_final.csv` ya están incluidos en `00_data/processed/` — **no es necesario tener credenciales de Google Cloud para reproducir el análisis**.
+
+El rundirectory detecta automáticamente si los archivos existen y omite el paso de BigQuery. Si deseas regenerarlos desde cero (por ejemplo, para actualizar los datos OSM), elimina los archivos procesados y corre manualmente:
 
 ```bash
 python 01_scripts/DataPreparation/01_extract_text_features.py
+export GOOGLE_APPLICATION_CREDENTIALS="/ruta/al/archivo.json"
 python 01_scripts/DataPreparation/02_add_osm_features.py
 ```
 
-Esto genera en `00_data/processed/` los archivos `train_final.csv` y `test_final.csv`, que son el input de todos los modelos. La carpeta `00_data/raw/osm/` se crea automáticamente como caché de la descarga OSM — a partir de la segunda ejecución el costo BigQuery es $0.
+La primera ejecución de `02_add_osm_features.py` consume ~69 GB de BigQuery (~$0.43 USD o gratis dentro del free tier mensual de 1 TB). Las siguientes son gratuitas gracias al caché en `00_data/raw/osm/`.
 
 ### 4. Correr cualquier modelo
 
