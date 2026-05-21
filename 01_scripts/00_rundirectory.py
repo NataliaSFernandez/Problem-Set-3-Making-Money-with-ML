@@ -26,6 +26,61 @@ from datetime import datetime
 from pathlib import Path
 
 # =============================================================================
+# DEPENDENCIAS
+# =============================================================================
+
+DEPENDENCIAS = [
+    'google-cloud-bigquery',
+    'google-cloud-bigquery-storage',
+    'pyarrow',
+    'xgboost',
+    'scikit-learn',
+    'pandas',
+    'numpy',
+    'openpyxl',
+    'scipy',
+    'torch',
+    'matplotlib',
+    'seaborn',
+    'tqdm',
+]
+
+
+def instalar_dependencias(paquetes: list) -> None:
+    """Instala los paquetes faltantes antes de correr el pipeline."""
+    import importlib
+    import subprocess
+    import sys
+
+    # Mapeo nombre pip -> nombre de import (cuando difieren)
+    import_names = {
+        'google-cloud-bigquery': 'google.cloud.bigquery',
+        'google-cloud-bigquery-storage': 'google.cloud.bigquery_storage',
+        'scikit-learn': 'sklearn',
+        'pyarrow': 'pyarrow',
+        'torch': 'torch',
+    }
+
+    faltantes = []
+    for paquete in paquetes:
+        import_name = import_names.get(paquete, paquete)
+        try:
+            importlib.import_module(import_name)
+        except ImportError:
+            faltantes.append(paquete)
+
+    if not faltantes:
+        print('Todas las dependencias estan instaladas.')
+        return
+
+    print(f'Instalando {len(faltantes)} paquete(s) faltante(s): {faltantes}')
+    subprocess.check_call(
+        [sys.executable, '-m', 'pip', 'install', '--quiet'] + faltantes
+    )
+    print('Instalacion completada.')
+
+
+# =============================================================================
 # CONFIGURACION
 # =============================================================================
 
@@ -67,6 +122,8 @@ def run_script(script_path: Path, descripcion: str) -> bool:
 # =============================================================================
 # INICIO
 # =============================================================================
+
+instalar_dependencias(DEPENDENCIAS)
 
 inicio_total = time.time()
 inicio_dt = datetime.now()
