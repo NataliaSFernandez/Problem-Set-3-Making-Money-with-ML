@@ -207,7 +207,7 @@ if not ok:
 # CV espacial MAE_log = 0.29778. Kaggle MAE = $313,972,117.
 
 ok = run_script(
-    BASE / "01_scripts" / "Models" / "01_ElasticNet" / "EN_002_interactions.py",
+    BASE / "01_scripts" / "Models" / "01_ElasticNet" / "EN_002_LogTransforms.py",
     "PASO 3.2: Elastic Net — EN_002 (log-transforms + poly espacial)"
 )
 if not ok:
@@ -219,7 +219,7 @@ if not ok:
 # CV espacial MAE_log = 0.27405. Kaggle MAE = $289,662,028.
 
 ok = run_script(
-    BASE / "01_scripts" / "Models" / "02_CART" / "CART_002_tuned.py",
+    BASE / "01_scripts" / "Models" / "02_CART" / "CART_002_AllFeatures.py",
     "PASO 3.3: CART — CART_002 (GridSearch espacial, depth=10)"
 )
 if not ok:
@@ -231,7 +231,7 @@ if not ok:
 # CV espacial MAE_log = 0.26364. Kaggle MAE = $289,569,353.
 
 ok = run_script(
-    BASE / "01_scripts" / "Models" / "03_RandomForest" / "RF_005_gridsearch_esp.py",
+    BASE / "01_scripts" / "Models" / "03_RandomForest" / "RF_005Opt.py",
     "PASO 3.4: Random Forest — RF_005 (grid depth, CV espacial, n=500)"
 )
 if not ok:
@@ -256,7 +256,7 @@ if not ok:
 # CV espacial MAE_log = 0.24331. Kaggle MAE = $216,987,903.
 
 ok = run_script(
-    BASE / "01_scripts" / "Models" / "06_NeuralNetwork" / "NN_003_bn_4layers.py",
+    BASE / "01_scripts" / "Models" / "06_NeuralNetwork" / "NN_003_ImprovedFeatures.py",
     "PASO 3.6: Neural Network — NN_003 (BN + 4 capas, PyTorch)"
 )
 if not ok:
