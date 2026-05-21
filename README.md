@@ -20,10 +20,11 @@ La métrica de evaluación en Kaggle es el **Mean Absolute Error (MAE)** sobre e
 
 | Modelo | Algoritmo | Kaggle MAE público | CV espacial MAE log | Sesgo Δ |
 |---|---|---|---|---|
-| **XGB_009** | XGBoost + KNN mediana K=30 + early stopping espacial | **$207,886,154** | 0.21079 | +0.03480 |
+| **SL_003** | SuperLearner NNLS (XGB_009 + NN_003 [+ RF_005]) | **$199,851,632** | — | — |
+| XGB_009 | XGBoost + KNN mediana K=30 + early stopping espacial | $207,886,154 | 0.21079 | +0.03480 |
 | XGB_010 | XGBoost + KNN ponderado por distancia K=30 | $215,636,744 | 0.17260 | +0.02231 |
 
-> XGB_009 tiene el mejor MAE Kaggle hasta la fecha. XGB_010 logra mejor CV espacial (0.1726 vs 0.2108) y menor sesgo Δ (+0.022 vs +0.035), lo que indica mayor confiabilidad en Chapinero — está en evaluación activa como candidato a mejor modelo.
+> SL_003 es el mejor modelo del repositorio con MAE $199,851,632. Compara internamente SL-2 (XGB_009 + NN_003) vs SL-3 (XGB_009 + NN_003 + RF_005) y selecciona el ganador por CV espacial, con parsimonia hacia SL-2 si la diferencia es menor a 1 std.
 
 ---
 
@@ -76,7 +77,7 @@ python 01_scripts/Models/04_Boosting/XGB_009_KNN.py
 python 01_scripts/Models/04_Boosting/XGB_010_KNNWeighted.py
 
 # SuperLearner (requiere que los modelos base ya hayan corrido)
-python 01_scripts/Models/07_SuperLearner/SL_002_optimal.py
+python 01_scripts/Models/07_SuperLearner/SL_003.py
 ```
 
 ---
@@ -121,10 +122,10 @@ Problem-Set-3-Making-Money-with-ML/
 │       │   ├── XGB_006_randomsearch150.py         # RandomizedSearch 150 iter
 │       │   ├── XGB_007_latlon.py                  # lat/lon + early stopping espacial
 │       │   ├── XGB_008_filtro_chapinero.py        # Filtro IQR precio/m² Chapinero
-│       │   ├── XGB_009_KNN.py                     # KNN mediana K=30 LOO haversine ⭐ MEJOR KAGGLE
+│       │   ├── XGB_009_KNN.py                     # KNN mediana K=30 LOO haversine
 │       │   └── XGB_010_KNNWeighted.py             # KNN ponderado 1/dist K=30 LOO
 │       ├── 06_NeuralNetwork/                      # NN_002 (MLP 3 capas) · NN_003 (BN + 4 capas)
-│       └── 07_SuperLearner/                       # SL_001 (baseline) · SL_002 (bases óptimas)
+│       └── 07_SuperLearner/                       # SL_001 (baseline) · SL_002 (bases óptimas) · SL_003 (NNLS, mejor Kaggle ⭐)
 │
 ├── 02_outputs/
 │   ├── model_registry.xlsx                        # Registro centralizado de todos los modelos
@@ -136,7 +137,7 @@ Problem-Set-3-Making-Money-with-ML/
 │       │   └── XGB_007/ … XGB_010/                # feature_importance.png · curva_aprendizaje.png
 │       │                                          # residuos.png · cv_comparacion.png
 │       ├── 06_NeuralNetwork/NN_002/ NN_003/
-│       └── 07_SuperLearner/SL_001/ SL_002/
+│       └── 07_SuperLearner/SL_001/ SL_002/ SL_003/
 │
 ├── 03_submissions/                                # CSVs de predicciones enviadas a Kaggle (20)
 │   ├── submission_LR_001_20260517.csv
@@ -154,10 +155,11 @@ Problem-Set-3-Making-Money-with-ML/
 │   ├── XGB_iter150_nest564_d8_lr0075_cv5_XGB_006.csv
 │   ├── XGB_latlon_earlystop_XGB_007.csv
 │   ├── XGB_filtro_chapinero_earlystop_XGB_008.csv
-│   ├── XGB_knn30_latlon_earlystop_XGB_009.csv    # ⭐ MEJOR MAE KAGGLE: $207,886,154
+│   ├── XGB_knn30_latlon_earlystop_XGB_009.csv
 │   ├── XGB_knn30_weighted_earlystop_XGB_010.csv
 │   ├── SL_001_baseline.csv
-│   └── submission_SL_002_20260519.csv
+│   ├── submission_SL_002_20260519.csv
+│   └── submission_SL_003_YYYYMMDD.csv            # ⭐ MEJOR MAE KAGGLE: $199,851,632
 │
 ├── .env.example                                   # Plantilla de credenciales Google Cloud
 ├── .gitignore
@@ -218,7 +220,8 @@ Todos los modelos están documentados en `02_outputs/model_registry.xlsx`. La ta
 
 | ID | Algoritmo | Features | CV rand MAE log | CV esp MAE log | Sesgo Δ | Kaggle MAE |
 |---|---|---|---|---|---|---|
-| XGB_009 | XGBoost | 32 | 0.17598 | 0.21079 | +0.03480 | **$207,886,154** ⭐ |
+| SL_003 | SuperLearner NNLS | 32+37 | — | — | — | **$199,851,632** ⭐ |
+| XGB_009 | XGBoost | 32 | 0.17598 | 0.21079 | +0.03480 | $207,886,154 |
 | XGB_010 | XGBoost | 32 | 0.15029 | 0.17260 | +0.02231 | $215,636,744 |
 | SL_002 | SuperLearner | 21 | — | — | +0.04118 | $289,712,137 |
 | RF_005 | RandomForest | 29 | 0.19172 | 0.26364 | +0.07192 | $289,569,353 |
@@ -227,7 +230,7 @@ Todos los modelos están documentados en `02_outputs/model_registry.xlsx`. La ta
 | EN_002 | ElasticNet | 37 | 0.26348 | 0.29778 | +0.03430 | $313,972,117 |
 | LR_001 | LinearRegression | 29 | 0.27905 | 0.31016 | +0.03111 | $318,727,924 |
 
-**Submissions en Kaggle: 20** (Daniela Solano R., Jonathan Melo Sarta, Natalia Suescún F.)
+**Submissions en Kaggle: 21** (Daniela Solano R., Jonathan Melo Sarta, Natalia Suescún F.)
 
 ---
 
@@ -255,17 +258,21 @@ El **sesgo Δ** = MAE_espacial − MAE_aleatorio mide la degradación al pasar d
 | Feature importance — XGB_010 | `XGB_010_KNNWeighted.py` | `02_outputs/Models/04_Boosting/XGB_010/feature_importance.png` |
 | Diagnósticos RF_005 | `RF_005_gridsearch_esp.py` | `02_outputs/Models/03_RandomForest/RF_005/` |
 | Diagnósticos NN_003 | `NN_003_bn_4layers.py` | `02_outputs/Models/06_NeuralNetwork/NN_003/` |
-| Diagnósticos SL_002 | `SL_002_optimal.py` | `02_outputs/Models/07_SuperLearner/SL_002/` |
+| Comparación SL-2 vs SL-3 | `SL_003.py` | `02_outputs/Models/SuperLearner/SL_003/comparacion_sl2_sl3.png` |
+| Pesos NNLS ganador | `SL_003.py` | `02_outputs/Models/SuperLearner/SL_003/pesos_nnls_ganador.png` |
+| CV vs CV espacial SL_003 | `SL_003.py` | `02_outputs/Models/SuperLearner/SL_003/cv_comparacion_ganador.png` |
+| Correlación bases SL_003 | `SL_003.py` | `02_outputs/Models/SuperLearner/SL_003/correlacion_bases.png` |
+| MAE individuales vs SL | `SL_003.py` | `02_outputs/Models/SuperLearner/SL_003/mae_individuales_vs_sl.png` |
 | EDA y distribución de precios | `03_clean_explore.py` | `02_outputs/figures/` |
 
 ---
 
 ## Entregables
 
-- `best_equipo_04.pdf` — Best Model Deep Dive
+- `best_equipo_04.pdf` — Best Model Deep Dive (SL_003, Kaggle MAE $199,851,632)
 - `compare_equipo_04.pdf` — Algorithm Comparison
 - Repositorio público en GitHub https://github.com/NataliaSFernandez/Problem-Set-3-Making-Money-with-ML
-- 20 submissions en Kaggle 
+- 20 submissions en Kaggle ✓
 
 ---
 
