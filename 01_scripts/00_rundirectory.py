@@ -170,10 +170,8 @@ train_final = BASE / "00_data" / "processed" / "train_final.csv"
 test_final  = BASE / "00_data" / "processed" / "test_final.csv"
 
 if train_final.exists() and test_final.exists():
-    print("
-PASO 1b OMITIDO: train_final.csv y test_final.csv ya existen en 00_data/processed/")
-    print("Para regenerarlos desde BigQuery, elimina esos archivos y vuelve a correr.
-")
+    print("\nPASO 1b OMITIDO: train_final.csv y test_final.csv ya existen en 00_data/processed/")
+    print("Para regenerarlos desde BigQuery, elimina esos archivos y vuelve a correr.\n")
 else:
     ok = run_script(
         BASE / "01_scripts" / "DataPreparation" / "02_add_osm_features.py",
