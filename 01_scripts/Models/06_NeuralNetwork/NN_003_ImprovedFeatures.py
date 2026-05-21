@@ -523,10 +523,6 @@ def plot_cv_espacial(maes_log: np.ndarray, maes_cop: np.ndarray,
 # SECCIÓN 8: SUBMISSION
 # =============================================================================
 
-TEMPLATE_PATH = Path(
-    "/Users/macbook/Downloads/uniandes-bdml-202610-ps-3/submission_template.csv"
-)
-
 
 def generar_submission(test: pd.DataFrame, y_pred_log: np.ndarray,
                        epochs_run: int, total_params: int) -> str:
@@ -534,17 +530,13 @@ def generar_submission(test: pd.DataFrame, y_pred_log: np.ndarray,
         "property_id": test["property_id"],
         "price":       np.exp(y_pred_log),
     })
-    template = pd.read_csv(TEMPLATE_PATH)
-    submission = (template[["property_id"]]
-                  .merge(submission, on="property_id", how="left"))
-
     sub_name = f"submission_{MODEL_ID}_ep{epochs_run}_p{total_params//1000}k.csv"
     submission.to_csv(SUBMISSIONS / sub_name, index=False)
-
     print(f"\n  Submission: 03_submissions/{sub_name}")
     print(f"  Filas: {len(submission):,} | "
           f"price media: {submission['price'].mean()/1e6:.1f}M COP")
     return sub_name
+
 
 
 # =============================================================================
