@@ -96,26 +96,6 @@ for d in [SUBMISSIONS, DIR_MODEL, BASE / "02_outputs"]:
 # =============================================================================
 # SECCIÓN 2: MEJORES HIPERPARÁMETROS DEL MODEL REGISTRY
 # =============================================================================
-# Fuente: model_registry.xlsx — ordenado por esp_cv_mae_log (MAE CV espacial)
-#   LPM   → LR_001   (esp=0.31016) — OLS sin hiperparámetros
-#   EN    → EN_001   (esp=0.29860) — alpha=0.00351552, l1_ratio=0.7
-#   CART  → CART_002 (esp=0.22825) — depth=10, leaf=20, ccp=0.0001
-#   RF    → RF_005   (esp=0.16414) — 500 árboles, depth=15, leaf=5
-#   NN    → NN_003   (esp=0.13739) — PyTorch 256→256→128→64, aproximado
-#                                     con MLPRegressor sklearn
-#   Boost → XGB_010  (esp=0.13865) — XGBoost con K-NN feature espacial
-#
-# NOTA sobre NN_003:
-#   NN_003 usa PyTorch con arquitectura propia → no es compatible con el
-#   pipeline sklearn de stacking. Se aproxima con MLPRegressor sklearn
-#   usando la misma arquitectura (256,256,128,64) y regularización similar.
-#
-# NOTA sobre XGB_010:
-#   Usa XGBoost (no GradientBoostingRegressor de sklearn). El código intenta
-#   importar XGBRegressor; si no está instalado, cae a GradientBoostingRegressor
-#   sklearn con parámetros equivalentes aproximados (fallback automático).
-#   XGB_010 incluye la feature precio_vecinos_ponderado (K=30 LOO haversine);
-#   si no está en train_final.csv, se imputa con 0 sin romper el pipeline.
 
 BEST_PARAMS = {
 
@@ -132,12 +112,12 @@ BEST_PARAMS = {
     "EN": {
         "tipo": "ElasticNet",
         "params": {
-            "alpha":        0.00351552,
-            "l1_ratio":     0.7,
+            "alpha":        0.0194,
+            "l1_ratio":     1,
             "max_iter":     5000,
             "random_state": SEED,
         },
-        "model_id_origen": "EN_001",
+        "model_id_origen": "EN_002",
         "esp_mae_log":     0.29860,
     },
 
@@ -156,14 +136,14 @@ BEST_PARAMS = {
     "RF": {
         "tipo": "RandomForestRegressor",
         "params": {
-            "n_estimators":     500,
-            "max_depth":        15,
-            "min_samples_leaf":  5,
+            "n_estimators":     100,
+            "max_depth":        20,
+            "min_samples_leaf":  1,
             "max_features":     "sqrt",
             "random_state":     SEED,
             "n_jobs":           -1,
         },
-        "model_id_origen": "RF_005",
+        "model_id_origen": "RF_002",
         "esp_mae_log":     0.16414,
     },
 
@@ -186,28 +166,28 @@ BEST_PARAMS = {
     "Boost": {
         "tipo": "XGBRegressor",
         "params": {
-            "n_estimators":      141,
-            "max_depth":           8,
-            "learning_rate":    0.0639,
-            "subsample":        0.998,
-            "colsample_bytree": 0.97,
-            "min_child_weight":    2,
-            "gamma":            0.4868,
-            "reg_lambda":       2.5179,
-            "reg_alpha":        0.4856,
+            "n_estimators":      265,
+            "max_depth":           6,
+            "learning_rate":    0.026,
+            "subsample":        0.749,
+            "colsample_bytree": 0.89,
+            "min_child_weight":    6,
+            "gamma":            0.321,
+            "reg_lambda":       3.1131,
+            "reg_alpha":        0.669,
             "random_state":      SEED,
             "n_jobs":              -1,
             "verbosity":           0,
         },
         "params_fallback": {
-            "n_estimators":    141,
-            "max_depth":         8,
-            "learning_rate":  0.0639,
-            "subsample":      0.998,
+            "n_estimators":    265,
+            "max_depth":         6,
+            "learning_rate":  0.026,
+            "subsample":      0.749,
             "min_samples_leaf":  2,
             "random_state":   SEED,
         },
-        "model_id_origen": "XGB_010",
+        "model_id_origen": "XGB_009",
         "esp_mae_log":     0.13865,
     },
 }
