@@ -424,20 +424,13 @@ def plot_residuos(y_true: np.ndarray, y_pred: np.ndarray) -> None:
 # SECCIÓN 8: SUBMISSION
 # =============================================================================
 
-TEMPLATE_PATH = Path(
-    "/Users/macbook/Downloads/uniandes-bdml-202610-ps-3/submission_template.csv"
-)
-
 
 def generar_submission(test: pd.DataFrame, y_pred_log: np.ndarray,
                        l1_ratio: float, alpha: float) -> str:
-    pred = pd.DataFrame({
+    submission = pd.DataFrame({
         "property_id": test["property_id"],
         "price":       np.exp(y_pred_log),
     })
-    template   = pd.read_csv(TEMPLATE_PATH)
-    submission = template[["property_id"]].merge(pred, on="property_id",
-                                                  how="left")
     sub_name = (
         f"submission_{MODEL_ID}_l1r{int(l1_ratio*100):03d}"
         f"_a{alpha:.0e}.csv"
@@ -448,6 +441,7 @@ def generar_submission(test: pd.DataFrame, y_pred_log: np.ndarray,
     print(f"  Filas: {len(submission):,} | "
           f"price media: {submission['price'].mean()/1e6:.1f}M COP")
     return sub_name
+
 
 
 # =============================================================================
