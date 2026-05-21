@@ -20,7 +20,7 @@ La métrica de evaluación en Kaggle es el **Mean Absolute Error (MAE)** sobre e
 
 | Modelo | Algoritmo | Kaggle MAE público | CV espacial MAE log | Sesgo Δ |
 |---|---|---|---|---|
-| **SL_003** | SuperLearner NNLS (XGB_009 + NN_003 [+ RF_005]) | **$199,851,632** | — | — |
+| **SL_003** | SuperLearner NNLS (XGB_009 + NN_003 [+ RF_005]) | **$199,851,632** | 0.23244 | +0.06700 |
 | XGB_009 | XGBoost + KNN mediana K=30 + early stopping espacial | $207,886,154 | 0.21079 | +0.03480 |
 | XGB_010 | XGBoost + KNN ponderado por distancia K=30 | $215,636,744 | 0.17260 | +0.02231 |
 
@@ -220,7 +220,7 @@ Todos los modelos están documentados en `02_outputs/model_registry.xlsx`. La ta
 
 | ID | Algoritmo | Features | CV rand MAE log | CV esp MAE log | Sesgo Δ | Kaggle MAE |
 |---|---|---|---|---|---|---|
-| SL_003 | SuperLearner NNLS | 32+37 | — | — | — | **$199,851,632** ⭐ |
+| SL_003 | SuperLearner NNLS | 32+37 | 0.16545 | 0.23244 | +0.06700 | **$199,851,632** ⭐ |
 | XGB_009 | XGBoost | 32 | 0.17598 | 0.21079 | +0.03480 | $207,886,154 |
 | XGB_010 | XGBoost | 32 | 0.15029 | 0.17260 | +0.02231 | $215,636,744 |
 | SL_002 | SuperLearner | 21 | — | — | +0.04118 | $289,712,137 |
