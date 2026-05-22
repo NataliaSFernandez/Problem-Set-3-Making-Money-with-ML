@@ -277,6 +277,34 @@ if not ok:
     sys.exit(1)
 
 # =============================================================================
+# PASO 4: ANALISIS DE ERRORES
+# =============================================================================
+# Regenera las 10 figuras de análisis de errores del mejor modelo (SL_003)
+# usando predicciones OOF (out-of-fold): cada observación fue predicha por
+# modelos que nunca la vieron. Sin leakage.
+# Output: 02_outputs/ErrorAnalysis_SL003/01_distribucion_residuos.png ... (10 figuras)
+
+ok = run_script(
+    BASE / "01_scripts" / "08_AnalisisError.py",
+    "PASO 4: Análisis de errores — SL_003 (10 figuras para best model deck)"
+)
+if not ok:
+    sys.exit(1)
+
+# =============================================================================
+# PASO 5: GRAFICAS DE COMPARACION
+# =============================================================================
+# Genera las 5 figuras de comparación entre algoritmos para el compare deck.
+# Output: 02_outputs/ComparacionFiguras/01_comparacion_sl_xgb.png ... (5 figuras)
+
+ok = run_script(
+    BASE / "01_scripts" / "09_CompareAnalisis.py",
+    "PASO 5: Gráficas de comparación — SL vs XGB vs NN (5 figuras para compare deck)"
+)
+if not ok:
+    sys.exit(1)
+
+# =============================================================================
 # RESUMEN FINAL
 # =============================================================================
 
@@ -311,6 +339,21 @@ Todos los resultados han sido generados en:
                                              -- cv_comparacion_ganador.png
                                              -- correlacion_bases.png
                                              -- mae_individuales_vs_sl.png
+      ErrorAnalysis_SL003/                   -- 01_distribucion_residuos.png
+                                             -- 02_sesgo_donut.png
+                                             -- 03_mae_por_segmento.png
+                                             -- 04_mapa_errores.png
+                                             -- 05_perdida_financiera.png
+                                             -- 06_scatter_real_vs_pred.png
+                                             -- 07_error_relativo_segmento.png
+                                             -- 08_comparacion_modelos_kaggle.png
+                                             -- 09_heatmap_espacial.png
+                                             -- 10_tabla_metricas_negocio.png
+      ComparacionFiguras/                    -- 01_comparacion_sl_xgb.png
+                                             -- 02_comparacion_sl_nn.png
+                                             -- 03_tradeoff_todos.png
+                                             -- 04_dumbbell_sl_xgb.png
+                                             -- 05_sesgo_sl_nn.png
 
   03_submissions/
       submission_LR_001_20260517.csv
