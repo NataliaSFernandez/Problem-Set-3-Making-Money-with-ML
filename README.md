@@ -58,7 +58,7 @@ export GOOGLE_APPLICATION_CREDENTIALS="/ruta/completa/a/credentials.json"
 
 ### 3. Preparar los datos
 
-Los archivos `train_final.csv` y `test_final.csv` ya están incluidos en `00_data/processed/` — **no es necesario tener credenciales de Google Cloud para reproducir el análisis**.
+Los archivos `train_final.csv` y `test_final.csv` ya están incluidos en `00_data/processed/` — **no es necesario tener credenciales de Google Cloud para reproducir el análisis.**
 
 El rundirectory detecta automáticamente si los archivos existen y omite el paso de BigQuery. Si deseas regenerarlos desde cero (por ejemplo, para actualizar los datos OSM), elimina los archivos procesados y corre manualmente:
 
@@ -70,21 +70,29 @@ python 01_scripts/DataPreparation/02_add_osm_features.py
 
 La primera ejecución de `02_add_osm_features.py` consume ~69 GB de BigQuery (~$0.43 USD o gratis dentro del free tier mensual de 1 TB). Las siguientes son gratuitas gracias al caché en `00_data/raw/osm/`.
 
-### 4. Correr cualquier modelo
+### 4. Ejecutar el pipeline completo
 
-Cada script en `01_scripts/Models/` es autocontenido: crea las carpetas de output necesarias, guarda los diagnósticos en `02_outputs/Models/<familia>/<modelo_id>/`, genera el CSV de submission en `03_submissions/`, y actualiza `02_outputs/model_registry.xlsx`. Las dependencias (xgboost, openpyxl, scipy) se instalan automáticamente si no están presentes.
+Desde la raíz del repositorio:
 
 ```bash
-# Ejemplo: mejor modelo Kaggle
-python 01_scripts/Models/04_Boosting/XGB_009_KNN.py
-
-# Ejemplo: mejor CV espacial
-python 01_scripts/Models/04_Boosting/XGB_010_KNNWeighted.py
-
-# SuperLearner (requiere que los modelos base ya hayan corrido)
-python 01_scripts/Models/07_SuperLearner/SL_003.py
+python 01_scripts/00_rundirectory.py
 ```
 
+Esto ejecuta todos los modelos de forma secuencial y regenera todos los resultados, figuras y submissions utilizados en las slides. Tiempo total aproximado: 45-60 minutos.
+
+| Paso | Script | Descripción | Tiempo aprox. |
+|---|---|---|---|
+| 1a | `01_extract_text_features.py` | Variables hedónicas desde texto | <1 min |
+| 1b | `02_add_osm_features.py` | Variables OSM — omitido si processed files existen | — |
+| 3.1 | `00_LinearProbabilityModel.py` | OLS baseline | <1 min |
+| 3.2 | `EN_002_LogTransforms.py` | Elastic Net | ~2 min |
+| 3.3 | `CART_002_AllFeatures.py` | CART GridSearch espacial | ~5 min |
+| 3.4 | `RF_005Opt.py` | Random Forest 500 árboles | ~10 min |
+| 3.5 | `XGB_009_KNN.py` | XGBoost KNN mediana K=30 | ~15 min |
+| 3.6 | `NN_003_ImprovedFeatures.py` | Neural Network PyTorch 4 capas | ~20 min |
+| 3.7 | `SL_003.py` | SuperLearner NNLS — mejor Kaggle | ~5 min |
+
+Al finalizar, todos los diagnósticos estarán en `02_outputs/Models/`, las submissions en `03_submissions/`, y el registro actualizado en `02_outputs/model_registry.xlsx`.
 ---
 
 ## Estructura del repositorio
